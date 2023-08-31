@@ -56,5 +56,13 @@ jobs:
       - name: Run tests
         run: |
           source .venv/bin/activate
-          pytest tests/
-          coverage report
+          coverage run -m pytest tests/ --cov
+#      - name: Generate coverage report
+#        run: |
+#          source .venv/bin/activate
+#          coverage html -i
+#      - name: Upload coverage report
+#        uses: actions/upload-artifact@v2
+#        with:
+#          name: coverage-report
+#          path: htmlcov
