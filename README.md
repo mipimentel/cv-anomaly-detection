@@ -32,3 +32,7 @@ poetry add opencv-python
 ```shell
 poetry update
 ```
+### Generating requirements
+```shell
+poetry export --without-hashes --format=requirements.txt > requirements.txt
+```
