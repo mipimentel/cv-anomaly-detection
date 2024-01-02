@@ -75,17 +75,17 @@ def plot_multiscale_basic_features(
     # convert to default opencv BGR if it is a pillow image
     image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
     features = features_func(image)
-    plot_features(features)
-
-
-def plot_features(features):
     num_features = features.shape[-1]
+
     # Calculate the grid size
     grid_size = int(np.ceil(np.sqrt(num_features)))
+
     # Create a figure with subplots in a square grid
     fig, axes = plt.subplots(nrows=grid_size, ncols=grid_size, figsize=(15, 15))
+
     # Flatten the array of axes for easy iteration
     axes = axes.flatten()
+
     # Loop over all possible grid positions
     for i in range(grid_size**2):
         ax = axes[i]
@@ -95,51 +95,31 @@ def plot_features(features):
             ax.imshow(feature_image, cmap="gray")
             ax.set_title(f"Feature {i + 1}")
         ax.axis("off")
+
     plt.tight_layout()
     plt.show()
 
 
 def plot_pca_cumulative_variance(
-    pca: Union[PCA, IncrementalPCA],
-    threshold: float = 0.9,
-    remove_x_ticks: bool = False,
+    pca: Union[PCA, IncrementalPCA], threshold: float = 0.9
 ) -> None:
     cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
     threshold_component = np.where(cumulative_variance >= threshold)[0][0] + 1
 
-    # Select a Seaborn style
-    sns.set(style="whitegrid")
-
-    # Plotting
-    plt.figure(figsize=(12, 7))
-    ax = sns.barplot(
-        x=np.arange(1, len(cumulative_variance) + 1), y=cumulative_variance
+    sns.barplot(
+        x=np.arange(1, len(pca.explained_variance_ratio_) + 1), y=cumulative_variance
     )
 
-    # Add horizontal line for the threshold
-    ax.axhline(
+    plt.axhline(y=threshold, color="red", linestyle="--")
+    plt.text(
+        x=threshold_component,
         y=threshold,
-        color="crimson",
-        linestyle="--",
-        alpha=0.7,
-        label=f"{threshold * 100}% Variance Threshold",
+        s=f"  {threshold_component} components explain {threshold * 100}% variance",
+        color="red",
     )
-    # Add vertical line at the component that meets the threshold
-    ax.axvline(
-        x=threshold_component - 1,
-        color="darkgreen",
-        linestyle="-.",
-        alpha=0.7,
-        label=f"Component {threshold_component}",
-    )
-    # Adding legend
-    ax.legend(loc="lower right")
 
-    if remove_x_ticks:
-        # Remove x-axis tick labels
-        ax.set_xticklabels([])
-
-    plt.title("Explained Cumulative Variance Ratio by PCA Components", fontsize=16)
-    plt.xlabel("Principal Components", fontsize=12)
-    plt.ylabel("Cumulative Variance Ratio", fontsize=12)
+    plt.title("Explained Cumulative Variance Ratio by PCA Components")
+    plt.xlabel("Principal Components")
+    plt.ylabel("Cumulative Variance Ratio")
     plt.show()
+:
