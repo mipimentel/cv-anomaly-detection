@@ -101,24 +101,46 @@ def plot_multiscale_basic_features(
 
 
 def plot_pca_cumulative_variance(
-    pca: Union[PCA, IncrementalPCA], threshold: float = 0.9
+    pca: Union[PCA, IncrementalPCA],
+    threshold: float = 0.9,
+    remove_x_ticks: bool = False,
 ) -> None:
     cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
     threshold_component = np.where(cumulative_variance >= threshold)[0][0] + 1
 
-    sns.barplot(
-        x=np.arange(1, len(pca.explained_variance_ratio_) + 1), y=cumulative_variance
+    # Select a Seaborn style
+    sns.set(style="whitegrid")
+
+    # Plotting
+    plt.figure(figsize=(12, 7))
+    ax = sns.barplot(
+        x=np.arange(1, len(cumulative_variance) + 1), y=cumulative_variance
     )
 
-    plt.axhline(y=threshold, color="red", linestyle="--")
-    plt.text(
-        x=threshold_component,
+    # Add horizontal line for the threshold
+    ax.axhline(
         y=threshold,
-        s=f"  {threshold_component} components explain {threshold * 100}% variance",
-        color="red",
+        color="crimson",
+        linestyle="--",
+        alpha=0.7,
+        label=f"{threshold * 100}% Variance Threshold",
     )
+    # Add vertical line at the component that meets the threshold
+    ax.axvline(
+        x=threshold_component - 1,
+        color="darkgreen",
+        linestyle="-.",
+        alpha=0.7,
+        label=f"Component {threshold_component}",
+    )
+    # Adding legend
+    ax.legend(loc="lower right")
 
-    plt.title("Explained Cumulative Variance Ratio by PCA Components")
-    plt.xlabel("Principal Components")
-    plt.ylabel("Cumulative Variance Ratio")
+    if remove_x_ticks:
+        # Remove x-axis tick labels
+        ax.set_xticklabels([])
+
+    plt.title("Explained Cumulative Variance Ratio by PCA Components", fontsize=16)
+    plt.xlabel("Principal Components", fontsize=12)
+    plt.ylabel("Cumulative Variance Ratio", fontsize=12)
     plt.show()
