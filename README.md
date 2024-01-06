@@ -15,6 +15,12 @@ To install Poetry, follow the steps on [the official site](https://python-poetry
 
 ## Using Poetry
 
+###  if having problem in Ubuntu WSL ZSH
+zsh: command not found: poetry
+```shell
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 ### Check current version
 ```shell
 poetry --version
