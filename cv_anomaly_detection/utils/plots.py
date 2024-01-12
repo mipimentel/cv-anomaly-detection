@@ -75,19 +75,19 @@ def plot_multiscale_basic_features(
     # convert to default opencv BGR if it is a pillow image
     image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
     features = features_func(image)
-    num_features = features.shape[-1]
+    plot_features(features)
 
+
+def plot_features(features):
+    num_features = features.shape[-1]
     # Calculate the grid size
     grid_size = int(np.ceil(np.sqrt(num_features)))
-
     # Create a figure with subplots in a square grid
     fig, axes = plt.subplots(nrows=grid_size, ncols=grid_size, figsize=(15, 15))
-
     # Flatten the array of axes for easy iteration
     axes = axes.flatten()
-
     # Loop over all possible grid positions
-    for i in range(grid_size**2):
+    for i in range(grid_size ** 2):
         ax = axes[i]
         if i < num_features:
             # Select the ith feature across all scales
@@ -95,7 +95,6 @@ def plot_multiscale_basic_features(
             ax.imshow(feature_image, cmap="gray")
             ax.set_title(f"Feature {i + 1}")
         ax.axis("off")
-
     plt.tight_layout()
     plt.show()
 
