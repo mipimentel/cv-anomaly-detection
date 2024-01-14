@@ -87,7 +87,7 @@ def plot_features(features):
     # Flatten the array of axes for easy iteration
     axes = axes.flatten()
     # Loop over all possible grid positions
-    for i in range(grid_size ** 2):
+    for i in range(grid_size**2):
         ax = axes[i]
         if i < num_features:
             # Select the ith feature across all scales
