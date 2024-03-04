@@ -143,4 +143,3 @@ def plot_pca_cumulative_variance(
     plt.xlabel("Principal Components", fontsize=12)
     plt.ylabel("Cumulative Variance Ratio", fontsize=12)
     plt.show()
-:
