@@ -16,6 +16,12 @@ numpy = "^1.25.2"
 imagehash = "^4.3.1"
 scikit-image = "^0.22.0"
 keras = "^3.0.2"
+torch = "^2.2.0"
+torchvision = "^0.17.0"
+pydot = "^2.0.0"
+pydot-ng = "^2.0.0"
+timm = "^0.9.16"
+yacs = "^0.1.8"
 
 
 [tool.poetry.group.dev.dependencies]
