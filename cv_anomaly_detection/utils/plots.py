@@ -1,6 +1,6 @@
 import math
 import os.path
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Union
 
 import cv2 as cv
 import matplotlib.pyplot as plt
@@ -109,12 +109,24 @@ def plot_pca_cumulative_variance(
     language: str = "en",
     save: bool = False,
     plot_name: str = "pca_cumulative_variance_plot.png",
+    group: Optional[int] = None,
 ) -> None:
     cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
     threshold_component = np.where(cumulative_variance >= threshold)[0][0] + 1
+    threshold_component_x = threshold_component
 
     # Select a Seaborn style
     sns.set(style="whitegrid")
+
+    if group:
+        grouped_variance = np.array(
+            [
+                pca.explained_variance_ratio_[i : i + group].sum()
+                for i in range(0, len(pca.explained_variance_ratio_), group)
+            ]
+        )
+        cumulative_variance = np.cumsum(grouped_variance)
+        threshold_component_x = np.where(cumulative_variance >= threshold)[0][0] + 1
 
     # Plotting
     plt.figure(figsize=(12, 7))
@@ -134,6 +146,7 @@ def plot_pca_cumulative_variance(
         linestyle="--",
         alpha=0.7,
         label=label,
+        linewidth=3,
     )
     # Add vertical line at the component that meets the threshold
     label = (
@@ -142,11 +155,12 @@ def plot_pca_cumulative_variance(
         else f"Dimensão {threshold_component}"
     )
     ax.axvline(
-        x=threshold_component - 1,
+        x=threshold_component_x - 1,
         color="darkgreen",
         linestyle="-.",
         alpha=0.7,
-        label=f"Component {threshold_component}",
+        label=label,
+        linewidth=3,
     )
     # Adding legend
     ax.legend(loc="lower right")
@@ -162,6 +176,7 @@ def plot_pca_cumulative_variance(
     )
     plt.title(label, fontsize=16)
     xlabel = "Principal Components" if language == "en" else "Dimensões"
+
     plt.xlabel(xlabel, fontsize=12)
     ylabel = (
         "Cumulative Variance Ratio"
@@ -169,6 +184,11 @@ def plot_pca_cumulative_variance(
         else "Porcentagem de Variância Acumulada"
     )
     plt.ylabel(ylabel, fontsize=12)
+    if group:
+        plt.xticks(
+            range(len(cumulative_variance)),
+            labels=np.arange(group, group * (len(cumulative_variance) + 1), group),
+        )
 
     if save:
         plt.savefig(os.path.join(PLOTS_DIR, plot_name))

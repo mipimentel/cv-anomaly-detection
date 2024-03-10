@@ -197,7 +197,12 @@ if __name__ == "__main__":
     print(pca.components_.shape)
 
     plot_pca_cumulative_variance(
-        pca, threshold=0.99, remove_x_ticks=True, language=language, save=True
+        pca,
+        threshold=0.99,
+        remove_x_ticks=False,
+        language=language,
+        save=True,
+        group=14,
     )
 
     print(
