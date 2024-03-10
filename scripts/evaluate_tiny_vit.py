@@ -34,7 +34,7 @@ from cv_anomaly_detection.img_dataframe import ImageDataFrameMVTEC
 # from data import build_transform, imagenet_classnames
 from cv_anomaly_detection.models.config import get_config
 from cv_anomaly_detection.models.tiny_vit import tiny_vit_21m_224
-from cv_anomaly_detection.utils import DATA_DIR, MVTEC_AD
+from cv_anomaly_detection.utils import DATA_DIR, MVTEC_AD, PLOTS_DIR, translation_dict
 from cv_anomaly_detection.utils.plots import (
     plot_features,
     plot_multiscale_basic_features,
@@ -132,6 +132,10 @@ def build_transform(is_train, config):
 
 hdf5_db_path = os.path.join(DATA_DIR, "mnt_tiny_vit_tmp.h5")
 
+# generate a translation dict for portuguese plots
+language = "pt-br"
+# language = "en"
+
 
 if __name__ == "__main__":
     # Build model without classification head
@@ -142,7 +146,7 @@ if __name__ == "__main__":
     img_df = ImageDataFrameMVTEC(category="cable")
     img_df.init_default()
 
-    test_df = img_df.df[img_df.df["dataset_type"] == "test"]
+    test_df = img_df.df[img_df.df["dataset_type"] == "test"].copy()
     train_df = img_df.df[img_df.df["dataset_type"] == "train"]
 
     # Load Image
@@ -192,7 +196,9 @@ if __name__ == "__main__":
     print(f"Minimum value:{min_val}, Maximum value: {max_val}")
     print(pca.components_.shape)
 
-    plot_pca_cumulative_variance(pca, threshold=0.99, remove_x_ticks=True)
+    plot_pca_cumulative_variance(
+        pca, threshold=0.99, remove_x_ticks=True, language=language, save=True
+    )
 
     print(
         f"Mean from PCA reconstruction diff from original and reconstructed at 0 index: {np.mean(pca.inverse_transform(transformed_data[0]) - outputs.numpy().reshape(-1))}"
@@ -270,6 +276,10 @@ if __name__ == "__main__":
     print(maha_npca_1)
 
     # plots for mahalanobis distance PCA 99%
+    if language == "pt-br":
+        test_df.loc[:, "class"] = test_df["class"].replace(translation_dict)
+
+    plt.figure(figsize=(8, 8))
     sns.violinplot(
         x="class",
         y="mahalanobis_pca_99%",
@@ -281,10 +291,21 @@ if __name__ == "__main__":
         x="class", y="mahalanobis_pca_99%", data=test_df, color="k", alpha=0.7
     )
 
+    label = (
+        f"Mahalanobis Distance with PCA 99% Threshold"
+        if language == "en"
+        else f"Distância de Mahalanobis com PCA 99%"
+    )
+    plt.ylabel(label)
+    plt.xlabel("Class" if language == "en" else "Classe")
     plt.xticks(rotation=90)
+    plt.tight_layout()
+
+    plt.savefig(os.path.join(PLOTS_DIR, "violin_plot_pca_99.png"))
     plt.show()
 
     # plots for mahalanobis distance NPCA 1%
+    plt.figure(figsize=(8, 8))
     sns.violinplot(
         x="class",
         y="mahalanobis_npca_1%",
@@ -296,5 +317,19 @@ if __name__ == "__main__":
         x="class", y="mahalanobis_npca_1%", data=test_df, color="k", alpha=0.7
     )
 
+    label = (
+        f"Mahalanobis Distance with NPCA 1% Threshold"
+        if language == "en"
+        else f"Distância de Mahalanobis com NPCA 1%"
+    )
+    plt.ylabel(label)
+    plt.xlabel("Class" if language == "en" else "Classe")
     plt.xticks(rotation=90)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(PLOTS_DIR, "violin_plot_npca_1.png"))
     plt.show()
+
+    test_df.to_parquet(
+        os.path.join(DATA_DIR, "test_tiny_vit_df.parquet"), engine="pyarrow"
+    )
