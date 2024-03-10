@@ -8,9 +8,18 @@
 
 
 """Model Inference."""
+import os
+
+import h5py
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 import torch
 from PIL import Image
+from scipy.spatial.distance import mahalanobis
+from sklearn.covariance import LedoitWolf
+from sklearn.decomposition import PCA
 from timm.data import create_transform
 from timm.data.constants import (
     IMAGENET_DEFAULT_MEAN,
@@ -26,6 +35,11 @@ from cv_anomaly_detection.img_dataframe import ImageDataFrameMVTEC
 from cv_anomaly_detection.models.config import get_config
 from cv_anomaly_detection.models.tiny_vit import tiny_vit_21m_224
 from cv_anomaly_detection.utils import DATA_DIR, MVTEC_AD
+from cv_anomaly_detection.utils.plots import (
+    plot_features,
+    plot_multiscale_basic_features,
+    plot_pca_cumulative_variance,
+)
 
 try:
     from torchvision.transforms import InterpolationMode
@@ -116,17 +130,12 @@ def build_transform(is_train, config):
     return transform
 
 
+hdf5_db_path = os.path.join(DATA_DIR, "mnt_tiny_vit_tmp.h5")
+
+
 if __name__ == "__main__":
-    outputs = {}  # A dictionary to store outputs
-
-    def get_layer_output(module, input, output):
-        outputs["norm_head_output"] = output
-
-    # Attach the hook to your layer
-
-    # Build model
-    model = tiny_vit_21m_224(pretrained=True)
-    hook = model.norm_head.register_forward_hook(get_layer_output)
+    # Build model without classification head
+    model = tiny_vit_21m_224(pretrained=True, num_classes=0)
 
     model.eval()
 
@@ -138,6 +147,7 @@ if __name__ == "__main__":
 
     # Load Image
     img_path = train_df["image_path"].iloc[0]
+    print(img_path)
     image = Image.open(img_path)
     transform = build_transform(is_train=False, config=config)
 
@@ -145,6 +155,146 @@ if __name__ == "__main__":
     batch = transform(image)[None]
 
     with torch.no_grad():
-        logits = model(batch)
+        outputs = model(batch)
 
-    print(outputs["norm_head_output"].shape)
+    print(outputs.shape)
+    # print(outputs["norm_head_output"].shape)
+    rows, _ = train_df.shape
+
+    with h5py.File(hdf5_db_path, "w") as h5:
+        h5.create_dataset(
+            "data",
+            shape=(rows, outputs.flatten().shape[0]),
+            dtype=outputs.numpy().dtype,
+        )
+
+        for i in range(rows):
+            img_path = train_df.iloc[i]["image_path"]
+            image = Image.open(img_path)
+            batch = transform(image)[None]
+            with torch.no_grad():
+                features = model(batch)
+
+            flattened_feats = features.flatten()
+            h5["data"][i, :] = flattened_feats
+
+    min_val = np.inf
+    max_val = -np.inf
+    with h5py.File(hdf5_db_path, "r") as h5:
+        data = h5["data"]
+        print(data.shape)
+        pca = PCA()
+        min_val = min(np.min(data), min_val)  # Update the minimum value
+        max_val = max(np.max(data), max_val)
+
+        transformed_data = pca.fit_transform(data)
+
+    print(f"Minimum value:{min_val}, Maximum value: {max_val}")
+    print(pca.components_.shape)
+
+    plot_pca_cumulative_variance(pca, threshold=0.99, remove_x_ticks=True)
+
+    print(
+        f"Mean from PCA reconstruction diff from original and reconstructed at 0 index: {np.mean(pca.inverse_transform(transformed_data[0]) - outputs.numpy().reshape(-1))}"
+    )
+    # for sanity check purpose of residual conversion difference
+    print(
+        f"Mean from PCA reconstruction diff from reconstructed at index 0  and reconstructed at index 1: {np.mean(pca.inverse_transform(transformed_data[1]) - outputs.numpy().reshape(-1))}"
+    )
+
+    # NPCA calculation
+
+    threshold = 0.99
+    cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+    component_idx = np.argmax(cumulative_variance >= threshold)
+    print(f"Component index threshold: {component_idx}")
+    pca_components = pca.components_[:component_idx]
+
+    with h5py.File(hdf5_db_path, "r") as h5:
+        data = h5["data"]
+        pca_transformed_data = np.dot(data - pca.mean_, pca_components.T)
+        print(pca_transformed_data.shape, pca_components.shape)
+        reconstructed = np.dot(pca_transformed_data, pca_components) + pca.mean_
+
+    npca_components = pca.components_[component_idx:]
+
+    with h5py.File(hdf5_db_path, "r") as h5:
+        data = h5["data"]
+        npca_transformed_data = np.dot(data - pca.mean_, npca_components.T)
+        print(npca_transformed_data.shape, npca_components.shape)
+        reconstructed = np.dot(npca_transformed_data, npca_components) + pca.mean_
+
+    # Ledoit Wolf
+    cov_npca_1_percent = LedoitWolf().fit(npca_transformed_data).covariance_
+    cov_pca_99_percent = LedoitWolf().fit(pca_transformed_data).covariance_
+
+    mean_npca_1_percent = np.mean(npca_transformed_data, axis=0)
+    mean_pca_99_percent = np.mean(pca_transformed_data, axis=0)
+
+    inv_cov_npca_1_percent = np.linalg.inv(cov_npca_1_percent)
+    inv_cov_pca_99_percent = np.linalg.inv(cov_pca_99_percent)
+
+    for idx, row in test_df.iterrows():
+        path = row["image_path"]
+        print(path)
+        image = Image.open(path)
+        batch = transform(image)[None]
+        with torch.no_grad():
+            features = model(batch)
+
+        feats = features.flatten()
+        # NPCA 1%
+        npca_transformed_data = np.dot(feats - pca.mean_, npca_components.T)
+        test_df.loc[idx, "mahalanobis_npca_1%"] = mahalanobis(
+            npca_transformed_data, mean_npca_1_percent, inv_cov_npca_1_percent
+        )
+
+        # PCA 99%
+        pca_transformed_data = np.dot(feats - pca.mean_, pca_components.T)
+        test_df.loc[idx, "mahalanobis_pca_99%"] = mahalanobis(
+            pca_transformed_data, mean_pca_99_percent, inv_cov_pca_99_percent
+        )
+
+    # visualize mahalanobis distance metrics
+    print(test_df[["mahalanobis_pca_99%", "mahalanobis_npca_1%"]].describe())
+    group_class = test_df.groupby("class")
+
+    maha_pca_99 = group_class["mahalanobis_pca_99%"].describe()
+    maha_npca_1 = group_class["mahalanobis_npca_1%"].describe()
+
+    pd.set_option("display.max_columns", None)  # Show all columns
+    print("\nDescriptive Statistics for Mahalanobis distance with PCA 99%")
+    print(maha_pca_99)
+
+    print("\nDescriptive Statistics for Mahalanobis distance with NPCA 1%")
+    print(maha_npca_1)
+
+    # plots for mahalanobis distance PCA 99%
+    sns.violinplot(
+        x="class",
+        y="mahalanobis_pca_99%",
+        data=test_df,
+        hue="class",
+        palette="colorblind",
+    )
+    sns.stripplot(
+        x="class", y="mahalanobis_pca_99%", data=test_df, color="k", alpha=0.7
+    )
+
+    plt.xticks(rotation=90)
+    plt.show()
+
+    # plots for mahalanobis distance NPCA 1%
+    sns.violinplot(
+        x="class",
+        y="mahalanobis_npca_1%",
+        data=test_df,
+        hue="class",
+        palette="colorblind",
+    )
+    sns.stripplot(
+        x="class", y="mahalanobis_npca_1%", data=test_df, color="k", alpha=0.7
+    )
+
+    plt.xticks(rotation=90)
+    plt.show()
