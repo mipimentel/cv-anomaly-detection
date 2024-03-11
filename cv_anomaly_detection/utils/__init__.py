@@ -3,6 +3,7 @@ import os
 BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 DATA_DIR = os.path.join(BASE_DIR, "datasets")
+PLOTS_DIR = os.path.join(BASE_DIR, "plots")
 MVTEC_AD = os.path.join(DATA_DIR, "mvtec")
 # MODELS_DIR = os.path.join(BASE_DIR, 'models')
 
@@ -19,3 +20,7 @@ translation_dict = {
     "cable_swap": "cabo trocado",
     "combined": "defeitos mistos",
 }
+
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(PLOTS_DIR, exist_ok=True)
+os.makedirs(MVTEC_AD, exist_ok=True)

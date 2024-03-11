@@ -1,5 +1,6 @@
 import math
-from typing import Callable, List, Union
+import os.path
+from typing import Callable, List, Optional, Union
 
 import cv2 as cv
 import matplotlib.pyplot as plt
@@ -8,6 +9,8 @@ import numpy.typing as npt
 import seaborn as sns
 from PIL import Image
 from sklearn.decomposition import PCA, IncrementalPCA
+
+from cv_anomaly_detection.utils import PLOTS_DIR
 
 
 def show(image: Image.Image) -> None:
@@ -103,12 +106,27 @@ def plot_pca_cumulative_variance(
     pca: Union[PCA, IncrementalPCA],
     threshold: float = 0.9,
     remove_x_ticks: bool = False,
+    language: str = "en",
+    save: bool = False,
+    plot_name: str = "pca_cumulative_variance_plot.png",
+    group: Optional[int] = None,
 ) -> None:
     cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
     threshold_component = np.where(cumulative_variance >= threshold)[0][0] + 1
+    threshold_component_x = threshold_component
 
     # Select a Seaborn style
     sns.set(style="whitegrid")
+
+    if group:
+        grouped_variance = np.array(
+            [
+                pca.explained_variance_ratio_[i : i + group].sum()
+                for i in range(0, len(pca.explained_variance_ratio_), group)
+            ]
+        )
+        cumulative_variance = np.cumsum(grouped_variance)
+        threshold_component_x = np.where(cumulative_variance >= threshold)[0][0] + 1
 
     # Plotting
     plt.figure(figsize=(12, 7))
@@ -117,20 +135,32 @@ def plot_pca_cumulative_variance(
     )
 
     # Add horizontal line for the threshold
+    label = (
+        f"{threshold * 100}% Variance Threshold"
+        if language == "en"
+        else f"Limiar de Variância {threshold * 100}%"
+    )
     ax.axhline(
         y=threshold,
         color="crimson",
         linestyle="--",
         alpha=0.7,
-        label=f"{threshold * 100}% Variance Threshold",
+        label=label,
+        linewidth=3,
     )
     # Add vertical line at the component that meets the threshold
+    label = (
+        f"Component {threshold_component} Threshold"
+        if language == "en"
+        else f"Dimensão {threshold_component}"
+    )
     ax.axvline(
-        x=threshold_component - 1,
+        x=threshold_component_x - 1,
         color="darkgreen",
         linestyle="-.",
         alpha=0.7,
-        label=f"Component {threshold_component}",
+        label=label,
+        linewidth=3,
     )
     # Adding legend
     ax.legend(loc="lower right")
@@ -139,7 +169,28 @@ def plot_pca_cumulative_variance(
         # Remove x-axis tick labels
         ax.set_xticklabels([])
 
-    plt.title("Explained Cumulative Variance Ratio by PCA Components", fontsize=16)
-    plt.xlabel("Principal Components", fontsize=12)
-    plt.ylabel("Cumulative Variance Ratio", fontsize=12)
+    label = (
+        "Explained Cumulative Variance Ratio by PCA Components"
+        if language == "en"
+        else "Porcentagem de Variância Acumulada por Dimensão do PCA"
+    )
+    plt.title(label, fontsize=16)
+    xlabel = "Principal Components" if language == "en" else "Dimensões"
+
+    plt.xlabel(xlabel, fontsize=12)
+    ylabel = (
+        "Cumulative Variance Ratio"
+        if language == "en"
+        else "Porcentagem de Variância Acumulada"
+    )
+    plt.ylabel(ylabel, fontsize=12)
+    if group:
+        plt.xticks(
+            range(len(cumulative_variance)),
+            labels=np.arange(group, group * (len(cumulative_variance) + 1), group),
+        )
+
+    if save:
+        plt.savefig(os.path.join(PLOTS_DIR, plot_name))
+
     plt.show()

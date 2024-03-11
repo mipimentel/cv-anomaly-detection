@@ -99,3 +99,4 @@ poetry/core/*
 
 # datasets file for filest not to be commited
 datasets
+plots
